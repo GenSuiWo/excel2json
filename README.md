@@ -17,6 +17,9 @@
 2. 安装 npm (通常随 Node.js 一起安装)
 
 检查安装：
+``` bash
+node --version
+npm --version
 ```
 
 ## 打包方式
