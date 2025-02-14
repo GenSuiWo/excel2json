@@ -1,0 +1,25 @@
+{
+  "name": "excel-to-json",
+  "version": "1.0.0",
+  "description": "Excel转JSON工具",
+  "main": "app.js",
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "bin": {
+    "excel-to-json": "./app.js"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/xlsx/**/*"
+    ],
+    "targets": [
+      "node16-win-x64",
+      "node16-macos-x64",
+      "node16-linux-x64"
+    ]
+  },
+  "scripts": {
+    "build": "pkg ."
+  }
+} 
