@@ -4,6 +4,8 @@
   "description": "Excel转JSON工具",
   "main": "app.js",
   "dependencies": {
+    "chalk": "^4.1.2",
+    "ora": "^5.4.1",
     "xlsx": "^0.18.5"
   },
   "bin": {
@@ -11,7 +13,9 @@
   },
   "pkg": {
     "assets": [
-      "node_modules/xlsx/**/*"
+      "node_modules/xlsx/**/*",
+      "node_modules/ora/**/*",
+      "node_modules/chalk/**/*"
     ],
     "targets": [
       "node16-win-x64",
@@ -22,4 +26,4 @@
   "scripts": {
     "build": "pkg ."
   }
-} 
+}
