@@ -5,6 +5,8 @@ const path = require('path');
 const readline = require('readline');
 const ora = require('ora');
 const chalk = require('chalk');
+const axios = require('axios');
+const os = require('os');
 
 // 创建命令行交互接口
 const rl = readline.createInterface({
@@ -89,6 +91,49 @@ async function excelToJson(excelPath) {
     }
 }
 
+// 下载在线文件
+async function downloadFile(url) {
+    const spinner = ora({
+        text: chalk.blue('正在下载在线文件...'),
+        spinner: 'dots'
+    }).start();
+
+    try {
+        const response = await axios({
+            method: 'get',
+            url: url,
+            responseType: 'arraybuffer'
+        });
+
+        // 在临时目录创建文件
+        const tempDir = path.join(os.tmpdir(), 'excel-to-json');
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir);
+        }
+
+        const fileName = path.basename(url).split('?')[0] || 'download.xlsx';
+        const filePath = path.join(tempDir, fileName);
+        
+        await fs.promises.writeFile(filePath, response.data);
+        spinner.succeed(chalk.green('文件下载完成'));
+        
+        return filePath;
+    } catch (error) {
+        spinner.fail(chalk.red('文件下载失败'));
+        throw new Error(`下载失败: ${error.message}`);
+    }
+}
+
+// 检查是否是URL
+function isValidUrl(string) {
+    try {
+        new URL(string);
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
 // 主函数
 async function main() {
     console.clear(); // 清屏
@@ -97,51 +142,69 @@ async function main() {
     console.log(chalk.yellow('━'.repeat(50)) + '\n');
     
     const promptUser = () => {
-        rl.question(chalk.blue('请输入Excel文件路径 ') + chalk.dim('(输入q退出): '), async (excelPath) => {
+        rl.question(chalk.blue('请输入Excel文件路径或URL ') + chalk.dim('(输入q退出): '), async (input) => {
             // 移除输入路径两端的空格和引号
-            excelPath = excelPath.trim().replace(/^["']|["']$/g, '');
+            input = input.trim().replace(/^["']|["']$/g, '');
             
             // 检查是否退出
-            if (excelPath.toLowerCase() === 'q') {
+            if (input.toLowerCase() === 'q') {
                 console.log(chalk.green('\n👋 感谢使用，再见!'));
                 rl.close();
                 return;
             }
-            
-            // 检查文件是否存在
-            if (!fs.existsSync(excelPath)) {
-                console.log(chalk.red(`\n❌ 错误: 找不到文件 '${excelPath}'`));
+
+            try {
+                let excelPath = input;
+                
+                // 如果是URL，先下载文件
+                if (isValidUrl(input)) {
+                    excelPath = await downloadFile(input);
+                }
+                
+                // 检查文件是否存在
+                if (!fs.existsSync(excelPath)) {
+                    console.log(chalk.red(`\n❌ 错误: 找不到文件 '${excelPath}'`));
+                    promptUser();
+                    return;
+                }
+                
+                // 检查文件扩展名
+                const ext = path.extname(excelPath).toLowerCase();
+                const supportedExts = ['.xlsx', '.xls', '.xlsb', '.xlsm', '.csv'];
+                if (!supportedExts.includes(ext)) {
+                    console.log(chalk.red(`\n❌ 错误: 不支持的文件格式。支持的格式: ${supportedExts.join(', ')}`));
+                    promptUser();
+                    return;
+                }
+                
+                // 执行转换
+                const result = await excelToJson(excelPath);
+                
+                // 如果是下载的临时文件，在转换完成后删除
+                if (isValidUrl(input)) {
+                    await fs.promises.unlink(excelPath);
+                }
+                
+                if (result.success) {
+                    console.log('\n' + chalk.yellow('━'.repeat(50)));
+                    console.log(chalk.green(`\n✨ ${result.message}`));
+                    console.log(chalk.dim('\n输出文件:'));
+                    result.results.forEach(({ sheetName, outputPath, rowCount }) => {
+                        console.log(chalk.cyan(`• ${sheetName}: `) + 
+                                  chalk.white(`${rowCount} 行数据 → `) + 
+                                  chalk.dim(outputPath));
+                    });
+                } else {
+                    console.log(chalk.red(`\n❌ 错误: ${result.error}`));
+                }
+                
+                console.log('\n' + chalk.yellow('━'.repeat(50)) + '\n');
                 promptUser();
-                return;
-            }
-            
-            // 检查文件扩展名
-            const ext = path.extname(excelPath).toLowerCase();
-            const supportedExts = ['.xlsx', '.xls', '.xlsb', '.xlsm', '.csv'];
-            if (!supportedExts.includes(ext)) {
-                console.log(chalk.red(`\n❌ 错误: 不支持的文件格式。支持的格式: ${supportedExts.join(', ')}`));
+                
+            } catch (error) {
+                console.log(chalk.red(`\n❌ 错误: ${error.message}`));
                 promptUser();
-                return;
             }
-            
-            // 执行转换
-            const result = await excelToJson(excelPath);
-            
-            if (result.success) {
-                console.log('\n' + chalk.yellow('━'.repeat(50)));
-                console.log(chalk.green(`\n✨ ${result.message}`));
-                console.log(chalk.dim('\n输出文件:'));
-                result.results.forEach(({ sheetName, outputPath, rowCount }) => {
-                    console.log(chalk.cyan(`• ${sheetName}: `) + 
-                              chalk.white(`${rowCount} 行数据 → `) + 
-                              chalk.dim(outputPath));
-                });
-            } else {
-                console.log(chalk.red(`\n❌ 错误: ${result.error}`));
-            }
-            
-            console.log('\n' + chalk.yellow('━'.repeat(50)) + '\n');
-            promptUser();
         });
     };
     
